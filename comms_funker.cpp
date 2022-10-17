@@ -53,18 +53,20 @@ Ubidots ubidots(token);
   }
 */
 
-void callback(char *topic, byte *payload, unsigned int length)
-{
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++)
-  {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-}
+void callback(char* topic, byte * message, unsigned int length) {     //set callback function
+  String espIN;
 
+  for (int i = 0; i < length; i++) {               //This function collects all ints being sent to the ESP.
+    espIN += (char)message[i];                      //Callback copied from RandomNerdsTutorials, references in report
+  }
+  Serial.println(espIN);
+  if (espIN == "1.0") {
+    Serial.println("alarm_på");
+  }
+  if (espIN == "0.0") {
+    Serial.println("alarm_av");
+  }
+}
 
 
 void setup() {                                  //sier seg selv
@@ -73,12 +75,13 @@ void setup() {                                  //sier seg selv
   ubidots.setCallback(callback);
   ubidots.setup();
   ubidots.reconnect();
-  //   ubidots.subscribeLastValue(device_name, );
+  ubidots.subscribeLastValue(device_name, temp_alarm_in);
 
 
   time_now = millis();
 
 }
+
 
 void loop() {
   if (!ubidots.connected()) {    //passer på at vi er connected
@@ -96,5 +99,6 @@ void loop() {
     ubidots.publish(device_name);                            //  publiserer melding
     time_now = millis();
   }
+  ubidots.loop();
 
 }
