@@ -22,7 +22,7 @@ const char* mqtt_client_name = "Blackbox1";                       // hva heter e
 const char* crash_alarm = "crash_reported";                                 // topic for å publishe
 const char* temp_alarm = "temperature_alarm";
 const char* wind_alarm = "wind_alarm";
-const char* device_name = "test_hore";                             // device navnet
+const char* device_name = "blackbox_1";                             // device navnet
 
 
 char mqtt_broker[] = "industrial.api.ubidots.com";
@@ -249,5 +249,4 @@ void loop() {
     crash_detected();
   }
 }
-
 
