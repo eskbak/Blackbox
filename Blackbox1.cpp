@@ -1,71 +1,87 @@
 
 //Including libraries
-#include <WiFi.h>         
-#include <PubSubClient.h>
+
+#include "UbidotsEsp32Mqtt.h"
+
 #include <Wire.h>
-
-WiFiClient espClient;                    //set names for libraries
-PubSubClient client(espClient);
-
-const char* ssid = "Prosjektnett";
-const char* password = "14159265";       //ssid and passord
-
-const char* id = "Blackbox1";             // Naming unit
-
-const char* mqtt_server =  "10.0.0.6";   //mqtt server on the RPi
-
-// set variables
-
-unsigned long time_now = 0;
-unsigned long time_now2 = 0; 
+#include <analogWrite.h>        //needed for buzzer alarm
 
 
 
-const char* GPS_topic = "skriv in topic";
-const char* speed_topic = "skriv in topic";
-const char* ALARM_topic = "skriv in topic"; 
+WiFiClient ubidots;                    //set names for libraries
+PubSubClient client(ubidots);
 
 
-float current_speed;
+const int blackbox_number = 1;
+
+const char* ssid = "Get-2G-348E01";
+const char* password = "Y8MYXJDY8C";
+const char* token = "BBFF-SYkwlxbJDZ3j58oMZpnNZYi8EiuRYO";        //token inne i Device
+const char* mqtt_client_name = "Blackbox1";                       // hva heter enheten
+
+const char* crash_alarm = "crash_reported";                                 // topic for å publishe
+const char* temp_alarm = "temperature_alarm";
+const char* wind_alarm = "wind_alarm";
+const char* device_name = "test_hore";                             // device navnet
 
 
+char mqtt_broker[] = "industrial.api.ubidots.com";
+char payload[100];
+char topics[150];
+char topic_subscribe[100];
 
 
-void alarm(){
-  while (crash_alarm == 1 and gyro_alarm == 1){
-    bip bop; 
-    sound sound; 
-    if ( gyro < crash vinkel & reset_button == pressed){
-      crash_alarm = 0;
-      gyro_alarm= 0; 
-      espOUT(alarm_over, ALARM_topic);
-    }
+Ubidots ubidots(token);
+
+
+unsigned long time_now;
+unsigned long time_now2;
+
+bool temperature_alarm;
+bool wind_alarm;
+
+/*
+
+  const char* GPS_topic = "skriv in topic";
+  const char* speed_topic = "skriv in topic";
+  const char* ALARM_topic = "skriv in topic";
+*/
+
+// float current_speed;    //brukes når vi skal gjøre et forsøk på aks--> fart
+
+
+void crash_detected() {
+  if ((crash_alarm) & (gyro_alarm)) {
+    ubidots.add(crash_alarm, 1);                                    // setter opp melding
+    ubidots.publish(device_name);                            //  publiserer melding
+    sound_and_blink();
+    sound_alarm = 1;
   }
 }
 
 
 
-
-
-
-void get_SPEED() {                        //assu ming x is forward direction. Get libby to red acc, and test. Check with standard angle to see if we need
-  if(acc_x >= 0){                         // to incorporate any acceleration from the other direvtions. We should make a correctio to direction based on startup gyro values. 
-  current_speed += 1/2 * acc**2;          //add the integrated value to the speed. 
-  } else if (acc_x < 0 ) {
-    current_speed -= 1/2 * acc**2;        // subtract the integrated value from the speed. 
+void alarm() {
+  sound_and_blink();
+  ubidots.loop();
+  if (reset_button) {
+    while (button) {}
+    sound_alarm = 0;
   }
+}
+}
 
 
-String convert_SPEED(){
-  char speed_string[10]; 
-  dtostrf(current_speed, 1, 1, speed_string)
-  return speed_string;
+void check_gyro();
+// lag et sjekk gyro, og lagre.
+// hvis gyro blir satt til 1, så initier tidsforsinkelse på 10 sek. Sjekk om gyro
+// fortsatt er fucka, og hvis ja, så sound_alarm.
 }
 
 
 
-String get_GPS{
-  ???
+Float get_GPS(){
+  ?? ?
 }
 
 
@@ -74,7 +90,7 @@ String get_GPS{
 
 
 
-float read_angle(int chan) {   //reads angle from sparkesykkel 
+float read_angle(int chan) {   //reads angle from sparkesykkel
 
   int byte_low = 0;
   int byte_high = 0;
@@ -149,157 +165,89 @@ float read_angle(int chan) {   //reads angle from sparkesykkel
     if (corrected_angle < 0) {
       corrected_angle += 360;
     }
-    if (corrected_angle > theta_max){
-      gyro_ALARM = 1; 
+    if (corrected_angle > theta_max) {
+      gyro_ALARM = 1;
     }
-//    return corrected_angle;
+    //    return corrected_angle;
   }
 }
 
 
 
-// hva gjør denne? 
-float theta_to_phi(float theta) {
-  float theta_rad = (theta - 180) * 0.01745329251; // pi/180 = 0.01745329251
-  return asin(R * sin(theta_rad)) * 57.2957795131;
-}
-
-
-
-
-
-
-
-// kan godt fjerne Serial.print - unødvendig, men nyttig for testing.  Kan evt returne stringen vår. 
-void callback(char* topic, byte* message, unsigned int length) {      //set callback function
-  Serial.print("Message arrived on topic: ");
-  Serial.print(topic);
-  Serial.print(". Message: ");
+void callback(char* topic, byte * message, unsigned int length) {     //set callback function
   String espIN;
-  
-  for (int i = 0; i < length; i++) {               //This function collects all ints being sent to the ESP. 
-    Serial.print((char)message[i]);                
+
+  for (int i = 0; i < length; i++) {               //This function collects all ints being sent to the ESP.
     espIN += (char)message[i];                      //Callback copied from RandomNerdsTutorials, references in report
   }
-  if(espIN == " noe? ") {
-    alarm_ICE();
-  } else if (espIN == " noe annet "){
-    alarm_WIND(); 
+  Serial.println(espIN);
+  if (espIN == "1.0") {
+    temp_alarm = 1;
+    Serial.println("alarm_på");
+  } else if (espIN == "0.0") {
+    Serial.println("alarm_av");
+    temp_alarm = 0;
+  } else if (espIN == "2.0") {
+    wind_alarm = 1;
+  } else if (espIN == "3.0") {
+    wind_alarm = 0;
   }
 }
 
 
- // test with string input.
-void esp_string_out( String payload, String topic) {                      //Publishing strings to mqtt. 
-  String message = payload;                                               //Can be used if we read from another ESP used as a slave. 
-  String destination = topic;
-  char Buf1[50];                                                          //creating a  buffer char array, which is used to store messages.
-  char Buf2[50];                                                            
-  if ((gyroskopet over en viss vinkel) & (Krasjet)) {                     //check to see which message to transmit. 
-    message.toCharArray(Buf1, 50); 
-    topic.toCharArray(Buf2, 50);                                          //gjør om beskjeden til char array. Buf er nå array med beskjeden
-    const char* a = Buf1;                                                 //Set topic
-    const char* b = Buf2;                                                 //choose message
-    client.publish(a, b);                                                 //publishing to MQTT topic
-}
-       
-
-
-
-void setupWifi() {                //wifi setup
-  Serial.print("Kobler til ");    
-  Serial.println(ssid);
-  WiFi.disconnect();              //making sure of a clean connection
-  delay(2000);                      
-  WiFi.begin(ssid, password);     //connect
-
-  while (WiFi.status() != WL_CONNECTED) {     //wait till connected
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println("");
-  Serial.println("WiFi tilkoblet");
-  Serial.println("IP Adresse: ");
-  Serial.println(WiFi.localIP());    // print IP adress when connected
-  //Connected :) 
-}
 
 
 
 
+void setup() {
+  Serial.begin(9600);
+  ubidots.connectToWifi(ssid, password);
+  ubidots.setCallback(callback);
+  ubidots.setup();
+  ubidots.reconnect();
+  ubidots.subscribeLastValue(device_name, wind_alarm);
+  ubidots.subscribeLastValue(device_name, temp_alarm);
 
-void setupMQTT() {                         
-  client.setServer(mqtt_server, 1883);     //sets the server and port on  RPi
-  client.setCallback(callback);            // sets callback function
-  client.setClient(espClient);             
-  client.connect(id);                      //connects, and connects as "id"
-  while (!client.connected()) {
-    if ((time_now + 1000) < millis()) {
-      time_now = millis();
-      Serial.print(client.state());
-      Serial.print(".");                   
-    }
-  }
-  if (client.connected()) {                   //When connected, connect to all the topics we need
-    client.subscribe("topic1");    
-    client.subscribe("topic2");
-    client.subscribe("topic3");
-    client.subscribe("topic4");
-    client.subscribe("topic5");
-    Serial.println("mqtt is up and running");            //confirms MQTT is operational
-                                                     
-  
-  }
-  // sjekk topics for dårlig vær her, hvis ok, så blink 3 ganger med grønt lys. 
-}
-
-                                     
-
-
-
-void setup() {                    
-  Serial.begin(115200);           
-  setupWifi();                   
-  setupMQTT();
   pinMode();
-  pinMode(); 
   pinMode();
-  current_speed = 0;                      
+  pinMode();
+
+  time_now = millis();
+  time_now2 = millis();
+
+
+  //  current_speed = 0;        //Dette er til når vi skal prøve oss på hastighet basert på aks
+
+
 }
 
 
 
 void loop() {
-  if (!client.connected()) {  // Ensures MQTT connection
-    client.connect(id);       
+  if (!ubidots.connected()) {    //passer på at vi er connected
+    ubidots.reconnect();
+    ubidots.subscribeLastValue(device_name, temp_alarm);        //re-sub  //da henter vi ut infor når det skjer noe  her.
+    ubidots.subscribeLastValue(device_name, wind_alarm);
   }
-  client.loop();              //Checks topics we are subscribed to. 
-
-  get_SPEED();
+  ubidots.loop();
 
 
-   
-  if (time_now + 1000 > millis()) {              // publishes every 5 seconds
-    String SPEED = speed_convert(current_SPEED); 
-    espOUT(SPEED, speed_topic);                 //publiserer speed, gps location to mqtt when driving
- 
-    String GPS = get_GPS(); 
-    espOUT(GPS, GPS_topic);
-    time_now = millis(); 
+
+  check_gyro();
+
+  if (time_now + 5000 < millis()) {
+    get_gps();
   }
 
 
- if(time_now2 + 5000 > millis() {
-    read_angle(); 
+  if ((temperature_alarm) || (wind_alarm) || (sound_alarm)) {
+    alarm();
+  }
 
-    if(gyro_alarm == 1 & crash_alarm == 1){     
-      espOUT(alarm, ALARM_topic);
-      alarm(); 
-    }
-    time_now2 = millis(); 
-    
-  } 
- //  deep.sleep eller hvordan man gjør det. Jeg vil at dette skal interruptes når Sparkesykkelen starter. ESP er aktiv  så lenge sparkesykkel står stille
-  // skal den automatisk gå i deep sleep
+  if ((gyro_alarm) & (!sound_alarm)) {
+    sound_alarm = 1;
+    crash_detected();
+  }
 }
+
+
