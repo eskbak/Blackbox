@@ -7,6 +7,7 @@ const char* password = "88888888";
 const char* token = "BBFF-SYkwlxbJDZ3j58oMZpnNZYi8EiuRYO";        //token inne i Device
 const char* mqtt_client_name = "Blackbox1";                       // hva heter enheten
 
+const char* max_g_logged = "crash_g";
 const char* crash_alarm = "crash_alarm";                                 // Api label for variable
 const char* temp_alarm = "temp_alarm";
 //const char* wind_alarm_in = "";
@@ -23,6 +24,8 @@ MPU6050 mpu(Wire);
 
 bool last_status_istilted = 0;
 int tolerance_angle_fallen = 50;
+float max_g = 0;
+float current_acc_y;
 // ferdig
 
 /*
@@ -72,30 +75,49 @@ void setup() {                                  //sier seg selv
   ubidots.subscribeLastValue(device_name, temp_alarm);
 
   mpu.begin();
-  mpu.calcOffsets();
+  mpu.calcOffsets(true, true); //imu og acc
+
+  ubidots.add(crash_alarm, 0);
+  ubidots.publish(device_name);
+
+  ubidots.add(max_g_logged, 0);
+  ubidots.publish(device_name);
+
   time_now = millis();
 }
 
 void loop() {
-    if (!ubidots.connected()) {    //passer på at vi er connected
-        ubidots.reconnect();
-        ubidots.subscribeLastValue(device_name, temp_alarm);        //re-sub  //da henter vi ut infor når det skjer noe  her.
-    }
-    
-    mpu.update();
-    if(abs(mpu.getAngleZ()) > tolerance_angle_fallen && !last_status_istilted){
-        last_status_istilted = 1;
-        ubidots.add(crash_alarm, last_status_istilted);
-        ubidots.publish(device_name);
-        Serial.println(last_status_istilted);
-    }
-    
-    if(abs(mpu.getAngleZ()) < tolerance_angle_fallen && last_status_istilted){
-        last_status_istilted = 0;
-        ubidots.add(crash_alarm, last_status_istilted);
-        ubidots.publish(device_name);
-        Serial.println(last_status_istilted);
-    }
-    
-    ubidots.loop();
+  if (!ubidots.connected()) {    //passer på at vi er connected
+    ubidots.reconnect();
+    ubidots.subscribeLastValue(device_name, temp_alarm);        //re-sub  //da henter vi ut infor når det skjer noe  her.
+  }
+
+  mpu.update();
+
+  current_acc_y = mpu.getAccY();   // Loggfører max g som vi kan sende ved en kolisjon
+  if (abs(current_acc_y) > max_g) {
+    max_g = abs(current_acc_y);
+  }
+
+  if (abs(mpu.getAngleZ()) > tolerance_angle_fallen && !last_status_istilted) {
+    // Sender opp info om at vi har veltet
+    last_status_istilted = 1;
+    ubidots.add(crash_alarm, last_status_istilted);
+    ubidots.publish(device_name);
+
+    // Sender opp info om loggført max g krefter
+    ubidots.add(max_g_logged, max_g);
+    ubidots.publish(device_name);
+    max_g = 0;
+    Serial.println(last_status_istilted);
+  }
+
+  if (abs(mpu.getAngleZ()) < tolerance_angle_fallen && last_status_istilted) {
+    last_status_istilted = 0;
+    ubidots.add(crash_alarm, last_status_istilted);
+    ubidots.publish(device_name);
+    Serial.println(last_status_istilted);
+  }
+
+  ubidots.loop();
 }
