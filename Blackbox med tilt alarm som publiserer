@@ -1,0 +1,101 @@
+#include "UbidotsEsp32Mqtt.h"
+#include <Wire.h>
+//#include <analogWrite.h>        //needed for buzzer alarm
+
+const char* ssid = "Vegard sin iPhone";
+const char* password = "88888888";
+const char* token = "BBFF-SYkwlxbJDZ3j58oMZpnNZYi8EiuRYO";        //token inne i Device
+const char* mqtt_client_name = "Blackbox1";                       // hva heter enheten
+
+const char* crash_alarm = "crash_alarm";                                 // Api label for variable
+const char* temp_alarm = "temp_alarm";
+//const char* wind_alarm_in = "";
+const char* device_name = "blackbox_1";                             // api label for device
+
+unsigned long time_now;
+
+Ubidots ubidots(token);
+
+// under er koden til krasj deteksjon
+#include <MPU6050_light.h>
+
+MPU6050 mpu(Wire);
+
+bool last_status_istilted = 0;
+int tolerance_angle_fallen = 50;
+// ferdig
+
+/*
+  // kan godt fjerne Serial.print - unødvendig, men nyttig for testing.  Kan evt returne stringen vår.
+  void callback(char* topic, byte * message, unsigned int length) {     //set callback function
+  //  Serial.print("Message arrived on topic: ");
+  //  Serial.print(topic);
+  //  Serial.print(". Message: ");
+  String espIN;
+  for (int i = 0; i < length; i++) {               //This function collects all ints being sent to the ESP.
+    Serial.print((char)message[i]);
+    espIN += (char)message[i];                      //Callback copied from RandomNerdsTutorials, references in report
+  }
+  if (espIN == "1.00") {
+    Serial.println("Alarm_på");
+    //     alarm_ICE();
+    //  } else if (espIN == " noe annet ") {
+    //    alarm_WIND();
+    //}
+  }
+  }
+*/
+
+void callback(char* topic, byte * message, unsigned int length) {     //set callback function
+  String espIN;
+
+  for (int i = 0; i < length; i++) {               //This function collects all ints being sent to the ESP.
+    espIN += (char)message[i];                      //Callback copied from RandomNerdsTutorials, references in report
+  }
+  Serial.println(espIN);
+  if (espIN == "1.0") {
+    Serial.println("alarm_på");
+  }
+  if (espIN == "0.0") {
+    Serial.println("alarm_av");
+  }
+}
+
+
+void setup() {                                  //sier seg selv
+  Serial.begin(9600);
+  Wire.begin();
+  ubidots.connectToWifi(ssid, password);
+  ubidots.setCallback(callback);
+  ubidots.setup();
+  ubidots.reconnect();
+  ubidots.subscribeLastValue(device_name, temp_alarm);
+
+  mpu.begin();
+  mpu.calcOffsets();
+  time_now = millis();
+}
+
+void loop() {
+    if (!ubidots.connected()) {    //passer på at vi er connected
+        ubidots.reconnect();
+        ubidots.subscribeLastValue(device_name, temp_alarm);        //re-sub  //da henter vi ut infor når det skjer noe  her.
+    }
+    
+    mpu.update();
+    if(abs(mpu.getAngleZ()) > tolerance_angle_fallen && !last_status_istilted){
+        last_status_istilted = 1;
+        ubidots.add(crash_alarm, last_status_istilted);
+        ubidots.publish(device_name);
+        Serial.println(last_status_istilted);
+    }
+    
+    if(abs(mpu.getAngleZ()) < tolerance_angle_fallen && last_status_istilted){
+        last_status_istilted = 0;
+        ubidots.add(crash_alarm, last_status_istilted);
+        ubidots.publish(device_name);
+        Serial.println(last_status_istilted);
+    }
+    
+    ubidots.loop();
+}
