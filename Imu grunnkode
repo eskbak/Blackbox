@@ -1,0 +1,28 @@
+#include "Wire.h"
+#include <MPU6050_light.h>
+
+MPU6050 mpu(Wire);
+
+bool last_status_istilted = 0;
+int tolerance_angle_fallen = 50;
+
+void setup() {
+    Serial.begin(9600);
+    Wire.begin();
+    byte status = mpu.begin();
+    
+    mpu.calcOffsets(); // gyro and accelero Hold i ro ved start
+}
+
+void loop() {
+    mpu.update();
+    if(abs(mpu.getAngleZ()) > tolerance_angle_fallen && !last_status_istilted){
+        Serial.println("Veltet");
+        last_status_istilted = 1;
+    }
+    if(abs(mpu.getAngleZ()) < tolerance_angle_fallen && last_status_istilted){
+        Serial.println("Ikke Veltet");
+        last_status_istilted = 0;
+    }
+}
+ 
