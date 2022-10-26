@@ -1,252 +1,158 @@
-
-//Including libraries
-
 #include "UbidotsEsp32Mqtt.h"
-
 #include <Wire.h>
-#include <analogWrite.h>        //needed for buzzer alarm
+//#include <analogWrite.h>        //needed for buzzer alarm
+#include <MPU6050_light.h>
 
-
-
-WiFiClient ubidots;                    //set names for libraries
-PubSubClient client(ubidots);
-
-
-const int blackbox_number = 1;
-
-const char* ssid = "Get-2G-348E01";
-const char* password = "Y8MYXJDY8C";
+const char* ssid = "Vegard sin iPhone";
+const char* password = "88888888";
 const char* token = "BBFF-SYkwlxbJDZ3j58oMZpnNZYi8EiuRYO";        //token inne i Device
 const char* mqtt_client_name = "Blackbox1";                       // hva heter enheten
 
-const char* crash_alarm = "crash_reported";                                 // topic for å publishe
-const char* temp_alarm = "temperature_alarm";
-const char* wind_alarm = "wind_alarm";
-const char* device_name = "blackbox_1";                             // device navnet
+
+/*
+-------------------------------------- -
+Setting API labels
+-------------------------------------- -
+*/
+
+const char* max_g_logged = "crash_g";
+const char* crash_alarm = "crash_alarm";
+const char* temp_alarm = "temp_alarm";
+char *pos = "gps";
+const char* device_name = "blackbox_1";
 
 
-char mqtt_broker[] = "industrial.api.ubidots.com";
-char payload[100];
-char topics[150];
-char topic_subscribe[100];
+/*
+  --------------------------------
+  Declearing variables
+  --------------------------------
+*/
+float _lat, _lng;
+const int LED = 13;
+unsigned long time_now;
+bool last_status_istilted = 0;
+int tolerance_angle_fallen = 50;
+float max_g = 0;
+float current_acc_y;
+
 
 
 Ubidots ubidots(token);
 
+MPU6050 mpu(Wire);
 
-unsigned long time_now;
-unsigned long time_now2;
-
-bool temperature_alarm;
-bool wind_alarm;
-
-/*
-
-  const char* GPS_topic = "skriv in topic";
-  const char* speed_topic = "skriv in topic";
-  const char* ALARM_topic = "skriv in topic";
-*/
-
-// float current_speed;    //brukes når vi skal gjøre et forsøk på aks--> fart
-
-
-void crash_detected() {
-  if ((crash_alarm) & (gyro_alarm)) {
-    ubidots.add(crash_alarm, 1);                                    // setter opp melding
-    ubidots.publish(device_name);                            //  publiserer melding
-    sound_and_blink();
-    sound_alarm = 1;
-  }
-}
-
-
-
-void alarm() {
-  sound_and_blink();
-  ubidots.loop();
-  if (reset_button) {
-    while (button) {}
-    sound_alarm = 0;
-  }
-}
-}
-
-
-void check_gyro();
-// lag et sjekk gyro, og lagre.
-// hvis gyro blir satt til 1, så initier tidsforsinkelse på 10 sek. Sjekk om gyro
-// fortsatt er fucka, og hvis ja, så sound_alarm.
-}
-
-
-
-Float get_GPS(){
-  ?? ?
-}
-
-
-
-
-
-
-
-float read_angle(int chan) {   //reads angle from sparkesykkel
-
-  int byte_low = 0;
-  int byte_high = 0;
-  int raw_angle = 0;
-  float deg_angle = 0;
-
-  if (chan == 1) {
-    I2Cone.beginTransmission(0x36);
-    I2Cone.write(0x0D);
-    I2Cone.endTransmission();
-
-    I2Cone.requestFrom(0x36, 1);
-    while (I2Cone.available()) {
-      byte_low = I2Cone.read();
-    }
-
-    I2Cone.beginTransmission(0x36);
-    I2Cone.write(0x0C);
-    I2Cone.endTransmission();
-
-    I2Cone.requestFrom(0x36, 1);
-    while (I2Cone.available()) {
-      byte_high = I2Cone.read();
-    }
-
-    byte_high = byte_high & 0b00001111;
-    byte_high = byte_high << 8;
-    raw_angle = byte_high | byte_low;
-    deg_angle = raw_angle * 0.087890625;
-
-    float corrected_angle = (deg_angle - initial_angle_1);
-
-    if (corrected_angle >= 360) {
-      corrected_angle -= 360;
-    }
-    if (corrected_angle < 0) {
-      corrected_angle += 360;
-    }
-
-    return corrected_angle;
-  }
-
-  else if (chan == 2) {
-    I2Ctwo.beginTransmission(0x36);
-    I2Ctwo.write(0x0D);
-    I2Ctwo.endTransmission();
-
-    I2Ctwo.requestFrom(0x36, 1);
-    while (I2Ctwo.available()) { // slave may send less than requested
-      byte_low = I2Ctwo.read();
-    }
-
-    I2Ctwo.beginTransmission(0x36);
-    I2Ctwo.write(0x0C);
-    I2Ctwo.endTransmission();
-
-    I2Ctwo.requestFrom(0x36, 1);
-    while (I2Ctwo.available()) { // slave may send less than requested
-      byte_high = I2Ctwo.read();
-    }
-
-    byte_high = byte_high & 0b00001111;
-    byte_high = byte_high << 8;
-    raw_angle = byte_high | byte_low;
-    deg_angle = raw_angle * 0.087890625; //12 bits to 360 degrees
-
-    float corrected_angle = (deg_angle - initial_angle_2);
-
-    if (corrected_angle >= 360) {
-      corrected_angle -= 360;
-    }
-    if (corrected_angle < 0) {
-      corrected_angle += 360;
-    }
-    if (corrected_angle > theta_max) {
-      gyro_ALARM = 1;
-    }
-    //    return corrected_angle;
-  }
-}
 
 
 
 void callback(char* topic, byte * message, unsigned int length) {     //set callback function
   String espIN;
 
-  for (int i = 0; i < length; i++) {               //This function collects all ints being sent to the ESP.
-    espIN += (char)message[i];                      //Callback copied from RandomNerdsTutorials, references in report
+  for (int i = 0; i < length; i++) {                 //This function collects all ints being sent to the ESP.
+    espIN += (char)message[i];                       //Callback copied from RandomNerdsTutorials, references in report
   }
   Serial.println(espIN);
   if (espIN == "1.0") {
-    temp_alarm = 1;
     Serial.println("alarm_på");
-  } else if (espIN == "0.0") {
+  }
+  if (espIN == "0.0") {
     Serial.println("alarm_av");
-    temp_alarm = 0;
-  } else if (espIN == "2.0") {
-    wind_alarm = 1;
-  } else if (espIN == "3.0") {
-    wind_alarm = 0;
   }
 }
 
 
+/*
+  -----------------------------------------------------------
+  This function sends the location of a crash to the ubidots
+  dashboard. 
+  -----------------------------------------------------------
+ */
+void crash_location() {
+
+  char* context = (char*)malloc(sizeof(char) * 60);          //
+
+  _lat = gps.location.lat();
+  _lng = gps.location.lng();
+
+  char result1[16];
+  char result2[16];
+
+  dtostrf(_lat, 3, 6 , result1);
+  dtostrf(_lng, 3, 6 , result2);
+
+  ubidots.addContext("lat", result1);
+  ubidots.addContext("lng", result2);
+
+  ubidots.getContext(context);
+
+  ubidots.add(pos, 1, context);
+
+  ubidots.publish(device_name);
+
+  Serial.println(result1);
+  Serial.println(result2);
+}
+
+
+void set_LED(
 
 
 
-
-void setup() {
+void setup() {                                 
   Serial.begin(9600);
+  Wire.begin();
   ubidots.connectToWifi(ssid, password);
   ubidots.setCallback(callback);
   ubidots.setup();
   ubidots.reconnect();
-  ubidots.subscribeLastValue(device_name, wind_alarm);
   ubidots.subscribeLastValue(device_name, temp_alarm);
 
-  pinMode();
-  pinMode();
-  pinMode();
+  mpu.begin();
+  mpu.calcOffsets(true, true); 
+
+
+  ubidots.add(crash_alarm, 0);                //sets initial value for alarm and max_g
+  ubidots.add(max_g_logged, 0);
+  ubidots.publish(device_name);
 
   time_now = millis();
-  time_now2 = millis();
-
-
-  //  current_speed = 0;        //Dette er til når vi skal prøve oss på hastighet basert på aks
-
-
 }
-
-
 
 void loop() {
-  if (!ubidots.connected()) {    //passer på at vi er connected
+  if (!ubidots.connected()) {                                   // if broken, fix (and resub)
     ubidots.reconnect();
-    ubidots.subscribeLastValue(device_name, temp_alarm);        //re-sub  //da henter vi ut infor når det skjer noe  her.
-    ubidots.subscribeLastValue(device_name, wind_alarm);
+    ubidots.subscribeLastValue(device_name, temp_alarm);        
   }
+
+  mpu.update();                         
+
+                          
+  current_acc_y = mpu.getAccY();                                //checking for maximum g-forces detected.                       
+  if (abs(current_acc_y) > max_g) {                             
+    max_g = abs(current_acc_y);
+  }
+
+
+/*
+ * This if statement checks if a crash has occured. In the event of a crash 
+ * the crash alarm will be set of and published, max_g and location of the crash 
+ * is published. This information is the essence of the blackbox.  
+ */
+  if (abs(mpu.getAngleZ()) > tolerance_angle_fallen && !last_status_istilted) {         
+    last_status_istilted = 1;
+    ubidots.add(crash_alarm, last_status_istilted); 
+    ubidots.add(max_g_logged, max_g);
+    ubidots.publish(device_name);
+    max_g = 0; 
+    crash_location();
+    
+  }
+// if the alarm is turned off, then crash alarms are turned off. 
+  if (abs(mpu.getAngleZ()) < tolerance_angle_fallen && last_status_istilted) {
+    last_status_istilted = 0;
+    ubidots.add(crash_alarm, last_status_istilted);
+    ubidots.publish(device_name);
+    Serial.println(last_status_istilted);
+  }
+
   ubidots.loop();
-
-
-
-  check_gyro();
-
-  if (time_now + 5000 < millis()) {
-    get_gps();
-  }
-
-
-  if ((temperature_alarm) || (wind_alarm) || (sound_alarm)) {
-    alarm();
-  }
-
-  if ((gyro_alarm) & (!sound_alarm)) {
-    sound_alarm = 1;
-    crash_detected();
-  }
 }
-
