@@ -20,6 +20,7 @@ float last_sendt_temp = 999;
 float last_sensor_alarm;
 bool sensor_alarm = 0;
 int temp_threshold = 4;                                                // Lower limit for low temp warning
+float temp_change_threshold = 0.5;                                     // If the tempchange is greater than x, we send the new data to ubidots
 
 DHT dht(DHTPIN, DHTTYPE); 
 
@@ -36,7 +37,7 @@ void get_sensor_data() {
         ubidots.publish(device_name);
         last_sensor_alarm = sensor_alarm;
     }
-    if(abs(live_temp - last_sendt_temp) > 0.2){                                  // If the change in temperature is greater than 0.2 Send the new temperature to ubidots
+    if(abs(live_temp - last_sendt_temp) > temp_change_threshold){                                  // If the change in temperature is greater than 0.2 Send the new temperature to ubidots
         last_sendt_temp = live_temp;
         ubidots.add(temp_now, live_temp);
         ubidots.publish(device_name);
