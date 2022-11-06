@@ -57,18 +57,18 @@ TinyGPSPlus gps;//This is the GPS object that will pretty much do all the grunt 
 
 
 void callback(char* topic, byte * message, unsigned int length) {     //set callback function
-  String espIN;
-
-  for (int i = 0; i < length; i++) {                 //This function collects all ints being sent to the ESP.
-    espIN += (char)message[i];                       //Callback copied from RandomNerdsTutorials, references in report
-  }
-  Serial.println(espIN);
-  if (espIN == "1.0") {
-    Serial.println("alarm_på");
-  }
-  if (espIN == "0.0") {
-    Serial.println("alarm_av");
-  }
+    String espIN;
+    
+    for (int i = 0; i < length; i++) {                 //This function collects all ints being sent to the ESP.
+        espIN += (char)message[i];                       //Callback copied from RandomNerdsTutorials, references in report
+    }
+        Serial.println(espIN);
+    if (espIN == "1.0") {
+        Serial.println("alarm_på");
+    }
+    if (espIN == "0.0") {
+        Serial.println("alarm_av");
+    }
 }
 
 
@@ -106,60 +106,59 @@ void set_LED() {}
 
 
 void setup() {                                 
-  Serial.begin(9600);
-  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);//This opens up communications to the GPS
-  ubidots.connectToWifi(ssid, password);
-  ubidots.setCallback(callback);
-  ubidots.setup();
-  ubidots.reconnect();
-  ubidots.subscribeLastValue(device_name, temp_alarm);
-
-  mpu.begin();
-  mpu.calcOffsets(true, true); 
-
-
-  ubidots.add(crash_alarm, 0);                //sets initial value for alarm and max_g
-  ubidots.add(max_g_logged, 0);
-  ubidots.publish(device_name);
-
-  time_now = millis();
+    Serial.begin(9600);
+    Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);//This opens up communications to the GPS
+    ubidots.connectToWifi(ssid, password);
+    ubidots.setCallback(callback);
+    ubidots.setup();
+    ubidots.reconnect();
+    ubidots.subscribeLastValue(device_name, temp_alarm);
+    
+    mpu.begin();
+    mpu.calcOffsets(true, true); 
+    
+    
+    ubidots.add(crash_alarm, 0);                //sets initial value for alarm and max_g
+    ubidots.add(max_g_logged, 0);
+    ubidots.publish(device_name);
+    
+    time_now = millis();
 }
 
 void loop() {
-  if (!ubidots.connected()) {                                   // if broken, fix (and resub)
-    ubidots.reconnect();
-    ubidots.subscribeLastValue(device_name, temp_alarm);        
-  }
-
-  mpu.update();                         
-
-                          
-  current_acc_y = mpu.getAccY();                                //checking for maximum g-forces detected.                       
-  if (abs(current_acc_y) > max_g) {                             
-    max_g = abs(current_acc_y);
-  }
-
-
-/*
- * This if statement checks if a crash has occured. In the event of a crash 
- * the crash alarm will be set of and published, max_g and location of the crash 
- * is published. This information is the essence of the blackbox.  
- */
-  if (abs(mpu.getAngleZ()) > tolerance_angle_fallen && !last_status_istilted) {         
-    last_status_istilted = 1;
-    ubidots.add(crash_alarm, last_status_istilted); 
-    ubidots.add(max_g_logged, max_g);
-    ubidots.publish(device_name);
-    max_g = 0; 
-    crash_location();
+    if (!ubidots.connected()) {                                   // if broken, fix (and resub)
+        ubidots.reconnect();
+        ubidots.subscribeLastValue(device_name, temp_alarm);        
+    }
     
-  }
-// if the alarm is turned off, then crash alarms are turned off. 
-  if (abs(mpu.getAngleZ()) < tolerance_angle_fallen && last_status_istilted) {
-    last_status_istilted = 0;
-    ubidots.add(crash_alarm, last_status_istilted);
-    ubidots.publish(device_name);
-    Serial.println(last_status_istilted);
-  }
-  ubidots.loop();
+    mpu.update();                         
+    
+                          
+    current_acc_y = mpu.getAccY();                                //checking for maximum g-forces detected.                       
+    if (abs(current_acc_y) > max_g) {                             
+        max_g = abs(current_acc_y);
+    }
+    
+    
+    /*
+    * This if statement checks if a crash has occured. In the event of a crash 
+    * the crash alarm will be set of and published, max_g and location of the crash 
+    * is published. This information is the essence of the blackbox.  
+    */
+    if (abs(mpu.getAngleZ()) > tolerance_angle_fallen && !last_status_istilted) {         
+        last_status_istilted = 1;
+        ubidots.add(crash_alarm, last_status_istilted); 
+        ubidots.add(max_g_logged, max_g);
+        ubidots.publish(device_name);
+        max_g = 0; 
+        crash_location();
+    }
+    // if the alarm is turned off, then crash alarms are turned off. 
+    if (abs(mpu.getAngleZ()) < tolerance_angle_fallen && last_status_istilted) {
+        last_status_istilted = 0;
+        ubidots.add(crash_alarm, last_status_istilted);
+        ubidots.publish(device_name);
+        Serial.println(last_status_istilted);
+    }
+    ubidots.loop();
 }
