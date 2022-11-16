@@ -33,9 +33,11 @@ const char* gps_topic = "gps";
 */
 String _lat;
 String _lng;
-const int LED = 13;
+const int LED = 18;
 unsigned long time_now;
+unsigned long LED_time; 
 bool last_status_istilted = 0;
+bool led_is_on
 int tolerance_angle_fallen = 10;
 float max_g = 0;
 float current_acc_y;
@@ -101,7 +103,12 @@ void crash_location() {
     }
 }
 
-void set_LED() {}
+void blink_LED() {
+  if (LED_time + 1000 < millis()){
+    led_is_on = !led_is_on;
+    digitalWrite(LED, led_is_on); 
+    LED_time = millis(); 
+}
 
 
 
@@ -122,8 +129,13 @@ void setup() {
     ubidots.add(crash_alarm, 0);                //sets initial value for alarm and max_g
     ubidots.add(max_g_logged, 0);
     ubidots.publish(device_name);
+  
+    pinMode(LED, OUTPUT); 
+  
+    
     
     time_now = millis();
+    LED_time = millis(); 
 }
 
 void loop() {
@@ -134,7 +146,11 @@ void loop() {
     
     mpu.update();                         
     
-                          
+    if(last_status_istilted){
+      blink_LED();
+    }
+      
+
     current_acc_y = mpu.getAccY();                                //checking for maximum g-forces detected.                       
     if (abs(current_acc_y) > max_g) {                             
         max_g = abs(current_acc_y);
