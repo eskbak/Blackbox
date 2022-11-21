@@ -37,8 +37,8 @@ const int LED = 18;
 unsigned long time_now;
 unsigned long LED_time; 
 bool last_status_istilted = 0;
-bool led_is_on
-int tolerance_angle_fallen = 10;
+bool led_is_on;
+int tolerance_angle_fallen = 45;
 float max_g = 0;
 float current_acc_y;
 
@@ -104,10 +104,11 @@ void crash_location() {
 }
 
 void blink_LED() {
-  if (LED_time + 1000 < millis()){
-    led_is_on = !led_is_on;
-    digitalWrite(LED, led_is_on); 
-    LED_time = millis(); 
+    if (LED_time + 1000 < millis()){
+        led_is_on = !led_is_on;
+        digitalWrite(LED, led_is_on); 
+        LED_time = millis(); 
+    }
 }
 
 
@@ -147,7 +148,7 @@ void loop() {
     mpu.update();                         
     
     if(last_status_istilted){
-      blink_LED();
+        blink_LED();
     }
       
 
@@ -178,6 +179,8 @@ void loop() {
         ubidots.add(crash_alarm, last_status_istilted);
         ubidots.publish(device_name);
         Serial.println(last_status_istilted);
+        led_is_on = false;
+        digitalWrite(LED, led_is_on);
     }
     ubidots.loop();
 }
