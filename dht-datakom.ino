@@ -76,6 +76,6 @@ void loop() {
 
   get_sensor_data();
 
-  sleep(30);                                                           
+  sleep(300);                                                           
   
 }
