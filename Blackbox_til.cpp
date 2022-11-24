@@ -1,6 +1,5 @@
 #include "UbidotsEsp32Mqtt.h"
 #include <Wire.h>
-//#include <analogWrite.h>        //needed for buzzer alarm
 #include <MPU6050_light.h>
 #include "TinyGPS++.h"
 
