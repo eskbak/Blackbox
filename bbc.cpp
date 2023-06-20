@@ -71,6 +71,8 @@ void callback(char* topic, byte * message, unsigned int length) {     //set call
 }
 
 
+/* Hei */
+
 /*
   -----------------------------------------------------------
   This function sends the location of a crash to the ubidots
